@@ -78,7 +78,6 @@ namespace POPOAuthSample
                 Console.WriteLine($"Error: {ex}");
             }
             Console.WriteLine("Finished");
-
         }
 
         static string ReadSSLStream()
@@ -102,36 +101,37 @@ namespace POPOAuthSample
         {
             try
             {
-                _popClient = new TcpClient("outlook.office365.com", 995);
-                _sslStream = new SslStream(_popClient.GetStream());
-                _sslStream.AuthenticateAsClient("outlook.office365.com");
-
-                ReadSSLStream();
-
-                // Initiate OAuth login
-                WriteSSLStream("AUTH XOAUTH2");
-                if (ReadSSLStream().StartsWith("+"))
+                using (_popClient = new TcpClient("outlook.office365.com", 995))
                 {
-                    // Send OAuth token
-                    WriteSSLStream(XOauth2(authResult));
-                    if (ReadSSLStream().StartsWith("+OK"))
+                    using (_sslStream = new SslStream(_popClient.GetStream()))
                     {
-                        // Logged in, get status
-                        WriteSSLStream("STAT");
+                        _sslStream.AuthenticateAsClient("outlook.office365.com");
+
                         ReadSSLStream();
 
-                        // And list of messages
-                        WriteSSLStream("LIST");
+                        // Initiate OAuth login
+                        WriteSSLStream("AUTH XOAUTH2");
+                        if (ReadSSLStream().StartsWith("+"))
+                        {
+                            // Send OAuth token
+                            WriteSSLStream(XOauth2(authResult));
+                            if (ReadSSLStream().StartsWith("+OK"))
+                            {
+                                // Logged in, get status
+                                WriteSSLStream("STAT");
+                                ReadSSLStream();
+
+                                // And list of messages
+                                WriteSSLStream("LIST");
+                                ReadSSLStream();
+                            }
+                        }
+                        WriteSSLStream("QUIT");
                         ReadSSLStream();
+
+                        Console.WriteLine("Closing connection");
                     }
                 }
-                WriteSSLStream("QUIT");
-                ReadSSLStream();
-
-                // Tidy up
-                Console.WriteLine("Closing connection");
-                _popClient.Close();
-                _sslStream.Dispose();
             }
             catch (SocketException ex)
             {
@@ -143,7 +143,7 @@ namespace POPOAuthSample
         {
             // Create the log-in code, which is a base 64 encoded combination of user and auth token
 
-            string ctrlA = $"{(char)1}";
+            char ctrlA = (char)1;
             string login = $"user={authResult.Account.Username}{ctrlA}auth=Bearer {authResult.AccessToken}{ctrlA}{ctrlA}";
             var plainTextBytes = System.Text.Encoding.UTF8.GetBytes(login);
             return Convert.ToBase64String(plainTextBytes);
